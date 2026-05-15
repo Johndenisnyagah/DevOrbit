@@ -1,0 +1,87 @@
+{# Legacy server-rendered task list. The active task dashboard is TasksPage.jsx. #}
+{% extends "base.html" %}
+{% block title %}Tasks — DevOrbit{% endblock %}
+{% block content %}
+
+{% if show_warning %}
+<div class="load-warning">
+  <div class="load-warning-icon">⚠️</div>
+  <div>
+    <strong>Cognitive Load Warning</strong>
+    You have {{ active_count }} tasks In Progress — above the recommended limit of {{ threshold }}.
+    Consider completing or pausing one before starting another.
+  </div>
+</div>
+{% endif %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-heading">Tasks</h1>
+    <p class="page-sub">{{ tasks|length }} task{{ 's' if tasks|length != 1 }} · {{ active_count }} in progress</p>
+  </div>
+  <a href="{{ url_for('task_create') }}" class="btn btn-primary">+ New Task</a>
+</div>
+
+<!-- Filter chips -->
+<div class="filter-bar">
+  <div class="filter-chips">
+    {% set counts = {'all': tasks|length} %}
+    {% for s, label in [('all','All'), ('ToDo','To Do'), ('InProgress','In Progress'), ('Paused','Paused'), ('Done','Done')] %}
+    {% set cnt = tasks|selectattr('status','equalto',s)|list|length if s != 'all' else tasks|length %}
+    <a href="{{ url_for('task_list', status=s, sort=sort_by) }}"
+       class="chip {% if filter_status == s %}active{% endif %}">
+      {{ label }}
+      <span class="chip-count">{{ cnt }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <select onchange="window.location=this.value"
+          style="font-size:12.5px;color:var(--text-3);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 10px;cursor:pointer;font-family:var(--font);outline:none;">
+    {% for key, label in [('updated_at','Recent first'),('priority','By priority'),('title','By title')] %}
+    <option value="{{ url_for('task_list', sort=key, status=filter_status) }}"
+            {% if sort_by == key %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+{% if tasks %}
+<div class="task-list">
+  <div class="task-list-header">
+    <span>Task</span>
+    <span>Status</span>
+    <span>Priority</span>
+    <span style="text-align:right">Updated</span>
+  </div>
+  {% for task in tasks %}
+  <a href="{{ url_for('task_detail', task_id=task.id) }}" class="task-row s-{{ task.status }}">
+    <div>
+      <div class="task-row-title">{{ task.title }}</div>
+      {% if task.description %}
+      <div class="task-row-desc">{{ task.description[:90] }}{% if task.description|length > 90 %}…{% endif %}</div>
+      {% endif %}
+    </div>
+    <div>
+      <span class="badge s-badge-{{ task.status }}">
+        <span class="badge-dot"></span>
+        {{ task.status }}
+      </span>
+    </div>
+    <div>
+      <span class="badge p-badge-{{ task.priority }}">{{ task.priority }}</span>
+    </div>
+    <div class="task-row-date">{{ task.updated_at[:10] }}</div>
+  </a>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-state-icon">◎</div>
+  <h3>No tasks yet</h3>
+  <p>Create your first task to get started.</p>
+  <a href="{{ url_for('task_create') }}" class="btn btn-primary">+ New Task</a>
+</div>
+{% endif %}
+
+{% endblock %}

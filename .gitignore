@@ -1,0 +1,37 @@
+# Python runtime artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local database and runtime logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Node/Vite artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/README.md
+frontend/public/icons.svg
+frontend/src/App.css
+frontend/src/assets/hero.png
+frontend/src/assets/react.svg
+frontend/src/assets/vite.svg
+
+# Local tool and assistant state
+.agents/
+.claude/
+
+# Environment and editor files
+.env
+.env.*
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

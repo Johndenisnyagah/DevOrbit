@@ -1,0 +1,60 @@
+{#
+  Legacy Flask layout template.
+
+  The current DevOrbit interface is the React app in frontend/src. This
+  template is retained only for reference in case the server-rendered UI is
+  restored or migrated later.
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}DevOrbit{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="{{ url_for('task_list') }}" class="navbar-brand">
+    <div class="brand-mark">◎</div>
+    <span class="brand-text">DevOrbit</span>
+  </a>
+
+  <a href="{{ url_for('task_list') }}"
+     class="nav-link {% if request.endpoint == 'task_list' %}active{% endif %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    Tasks
+  </a>
+  <a href="{{ url_for('standup') }}"
+     class="nav-link {% if request.endpoint == 'standup' %}active{% endif %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+    Standup
+  </a>
+
+  <div class="navbar-spacer"></div>
+  <div class="navbar-right">
+    <a href="{{ url_for('task_create') }}" class="btn-nav">+ New Task</a>
+  </div>
+</nav>
+
+<div class="page">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">
+            <span>{{ message }}</span>
+            <button onclick="this.parentElement.remove()" class="flash-close">×</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</div>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

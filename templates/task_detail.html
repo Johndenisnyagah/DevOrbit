@@ -1,0 +1,116 @@
+{# Legacy server-rendered task detail view. The active detail UI is TaskDetailPage.jsx. #}
+{% extends "base.html" %}
+{% block title %}{{ task.title }} — DevOrbit{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:20px">
+  <a href="{{ url_for('task_list') }}" style="font-size:13px;color:var(--text-3);">← Back to Tasks</a>
+</div>
+
+<div class="detail-layout">
+
+  <!-- LEFT: Main info + features -->
+  <div>
+
+    <!-- Task card -->
+    <div class="detail-main-card">
+      <div class="detail-meta">
+        <span class="badge p-badge-{{ task.priority }}">{{ task.priority }}</span>
+        <span class="badge s-badge-{{ task.status }}">
+          <span class="badge-dot"></span>{{ task.status }}
+        </span>
+        <span class="detail-updated">{{ task.updated_at[:16] }}</span>
+      </div>
+
+      <h1 class="detail-title">{{ task.title }}</h1>
+      {% if task.description %}
+      <p class="detail-desc">{{ task.description }}</p>
+      {% endif %}
+
+      {% if valid_next %}
+      <div class="action-section">
+        <div class="action-label">Actions</div>
+        <div class="action-btns">
+          {% for ns in valid_next %}
+          <form method="POST" action="{{ url_for('update_status', task_id=task.id) }}">
+            <input type="hidden" name="status" value="{{ ns }}">
+            {% if ns == 'InProgress' and task.status == 'ToDo' %}
+              <button type="submit" class="btn btn-start">▶ Start Task</button>
+            {% elif ns == 'InProgress' %}
+              <button type="submit" class="btn btn-start">↩ Resume Task</button>
+            {% elif ns == 'Paused' %}
+              <button type="submit" class="btn btn-pause">⏸ Pause Task</button>
+            {% elif ns == 'Done' %}
+              <button type="submit" class="btn btn-done">✓ Mark Done</button>
+            {% endif %}
+          </form>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- FR3: Context Snapshot -->
+    {% if snapshot %}
+    <div class="snapshot-box">
+      <div class="snapshot-box-head">
+        <span style="font-size:16px">📌</span>
+        <span class="snapshot-box-label">Context Snapshot</span>
+        <span class="snapshot-box-date">{{ snapshot.created_at[:16] }}</span>
+      </div>
+      <div class="snapshot-box-text">{{ snapshot.content }}</div>
+      <a href="{{ url_for('save_snapshot', task_id=task.id) }}" class="btn btn-ghost btn-sm">Update Snapshot</a>
+    </div>
+    {% elif task.status != 'Done' %}
+    <div class="snapshot-box snapshot-box-empty">
+      <div class="snapshot-box-head">
+        <span style="font-size:16px">📌</span>
+        <span class="snapshot-box-label" style="color:var(--text-3)">No context snapshot yet</span>
+      </div>
+      <a href="{{ url_for('save_snapshot', task_id=task.id) }}" class="btn btn-ghost btn-sm">Save Snapshot</a>
+    </div>
+    {% endif %}
+
+    <!-- FR4: Interruption Logger -->
+    {% if task.status == 'InProgress' %}
+    <div class="interrupt-box">
+      <div class="interrupt-box-head">
+        <span style="font-size:16px">⚡</span>
+        <span class="interrupt-box-label">Log an Interruption</span>
+      </div>
+      <form method="POST" action="{{ url_for('log_interruption', task_id=task.id) }}">
+        <div class="interrupt-row">
+          <input type="text" name="interruption_note" class="form-input interrupt-input"
+                 placeholder="What interrupted you? (e.g. urgent bug report from QA)"
+                 required>
+          <button type="submit" class="btn btn-interrupt">Log</button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- RIGHT: Activity log -->
+  <div class="activity-panel">
+    <div class="activity-panel-title">Activity Log</div>
+    {% if logs %}
+    <div class="activity-feed">
+      {% for log in logs %}
+      <div class="activity-entry ev-{{ log.event_type }}">
+        <div class="activity-pip"></div>
+        <div class="activity-body">
+          <div class="activity-kind">{{ log.event_type }}</div>
+          <div class="activity-text">{{ log.content }}</div>
+          <span class="activity-when">{{ log.timestamp[:16] }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="activity-none">No activity recorded yet.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
