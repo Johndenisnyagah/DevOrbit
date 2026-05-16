@@ -48,13 +48,6 @@ export default function TaskCreatePage({ onToast }) {
 
   return (
     <>
-      <div className="main-topbar">
-        <div className="topbar-breadcrumb">
-          <Link to="/">Dashboard</Link>
-          <span className="crumb-muted">New Task</span>
-        </div>
-      </div>
-
       <div className="main-scroll">
         <div className="form-card">
           <div className="form-eyebrow">Task Intake</div>

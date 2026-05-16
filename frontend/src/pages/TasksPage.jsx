@@ -24,6 +24,12 @@ const STATUS_META = [
   { key: 'Done', label: 'Done', accent: '#37d5c4' },
 ]
 
+const PRIORITY_META = [
+  { key: 'High', label: 'High' },
+  { key: 'Medium', label: 'Medium' },
+  { key: 'Low', label: 'Low' },
+]
+
 const PRIORITY_ORDER = { High: 1, Medium: 2, Low: 3 }
 
 /** Format SQLite local timestamps for compact dashboard labels. */
@@ -110,10 +116,29 @@ export default function TasksPage({ activeStatus, activePriority, onTasksLoaded 
       const pct = total ? Math.round((count / total) * 100) : 0
       return { ...meta, count, pct }
     })
+    const priorityCounts = PRIORITY_META.map(meta => ({
+      ...meta,
+      count: source.filter(t => t.priority === meta.key && t.status !== 'Done').length,
+    }))
+    const chartSources = [
+      statusCounts.find(item => item.key === 'ToDo'),
+      statusCounts.find(item => item.key === 'Paused'),
+      priorityCounts.find(item => item.key === 'High'),
+      priorityCounts.find(item => item.key === 'Medium'),
+      priorityCounts.find(item => item.key === 'Low'),
+      statusCounts.find(item => item.key === 'Done'),
+      { ...statusCounts.find(item => item.key === 'InProgress'), highlight: true },
+    ].filter(Boolean)
+    const maxChartCount = Math.max(1, ...chartSources.map(item => item.count))
+    const chartBars = chartSources.map(item => ({
+      ...item,
+      accent: item.highlight ? '#ff3d86' : '#464b60',
+      pct: item.count ? Math.round(30 + (item.count / maxChartCount) * 58) : 24,
+    }))
     const high = source.filter(t => t.priority === 'High' && t.status !== 'Done').length
     const complete = source.filter(t => t.status === 'Done').length
     const paused = source.filter(t => t.status === 'Paused').length
-    return { total, statusCounts, high, complete, paused }
+    return { total, statusCounts, chartBars, high, complete, paused }
   }, [data?.tasks])
 
   if (loading) return <div className="loading-page"><div className="spinner" /></div>
@@ -132,53 +157,7 @@ export default function TasksPage({ activeStatus, activePriority, onTasksLoaded 
 
   return (
     <>
-      <div className="main-topbar">
-        <div className="topbar-breadcrumb">
-          <span>Dashboard</span>
-          <span className="crumb-muted">Task Control</span>
-        </div>
-        <div className="topbar-right">
-          <div className="dropdown-wrap" ref={dropRef}>
-            <button type="button" className="topbar-dropdown-btn" onClick={() => setSortOpen(o => !o)}>
-              {sortLabel}
-              <Icon name="chevronDown" size={13} />
-            </button>
-            <AnimatePresence>
-              {sortOpen && (
-                <motion.div
-                  className="dropdown-menu"
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  {SORT_OPTIONS.map(o => (
-                    <button
-                      key={o.key}
-                      type="button"
-                      className={`dropdown-item${sort === o.key ? ' active' : ''}`}
-                      onClick={() => {
-                        const next = new URLSearchParams(searchParams)
-                        next.set('sort', o.key)
-                        setSearchParams(next)
-                        setSortOpen(false)
-                      }}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          <Link to="/tasks/new" className="btn-primary">
-            <Icon name="plus" size={15} />
-            New Task
-          </Link>
-        </div>
-      </div>
-
-      <div className="main-scroll">
+      <div className="main-scroll dashboard-canvas">
         {data?.show_warning && (
           <div className="load-warning">
             <Icon name="alert" size={18} />
@@ -193,16 +172,16 @@ export default function TasksPage({ activeStatus, activePriority, onTasksLoaded 
           <div className="panel panel-wide">
             <div className="panel-label">Today's Info</div>
             <div className="bar-chart" aria-label="Task status distribution">
-              {stats.statusCounts.map(item => (
+              {stats.chartBars.map(item => (
                 <button
                   key={item.key}
                   type="button"
-                  className={`chart-bar s-${item.key}`}
-                  style={{ '--bar-height': `${Math.max(18, item.pct)}%`, '--bar-color': item.accent }}
+                  className={`chart-bar${item.highlight ? ' highlight' : ''}`}
+                  style={{ '--bar-height': `${item.pct}%`, '--bar-color': item.accent }}
                   onClick={() => navigate('/')}
                   aria-label={`${item.label}: ${item.count} tasks`}
                 >
-                  <span className="chart-count">{item.count}</span>
+                  <span className="chart-count">{item.count}<small>tasks</small></span>
                   <span className="chart-fill" />
                   <span className="chart-caption">{item.label}</span>
                 </button>
@@ -268,9 +247,44 @@ export default function TasksPage({ activeStatus, activePriority, onTasksLoaded 
         )}
 
         <section>
-          <div className="section-heading">
-            <span>{inProgressTasks.length > 0 ? 'Task Queue' : 'Tasks'}</span>
-            <span>{otherTasks.length}</span>
+          <div className="section-heading queue-heading">
+            <div className="section-title-count">
+              <span>{inProgressTasks.length > 0 ? 'Task Queue' : 'Tasks'}</span>
+              <span>{otherTasks.length}</span>
+            </div>
+            <div className="dropdown-wrap" ref={dropRef}>
+              <button type="button" className="sort-dropdown-btn" onClick={() => setSortOpen(o => !o)}>
+                {sortLabel}
+                <Icon name="chevronDown" size={13} />
+              </button>
+              <AnimatePresence>
+                {sortOpen && (
+                  <motion.div
+                    className="dropdown-menu"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {SORT_OPTIONS.map(o => (
+                      <button
+                        key={o.key}
+                        type="button"
+                        className={`dropdown-item${sort === o.key ? ' active' : ''}`}
+                        onClick={() => {
+                          const next = new URLSearchParams(searchParams)
+                          next.set('sort', o.key)
+                          setSearchParams(next)
+                          setSortOpen(false)
+                        }}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {otherTasks.length > 0 ? (

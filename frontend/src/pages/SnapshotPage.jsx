@@ -51,14 +51,6 @@ export default function SnapshotPage({ onToast }) {
 
   return (
     <>
-      <div className="main-topbar">
-        <div className="topbar-breadcrumb">
-          <Link to="/">Dashboard</Link>
-          {task && <Link to={`/tasks/${id}`} className="crumb-muted">{task.title}</Link>}
-          <span className="crumb-muted">Context Snapshot</span>
-        </div>
-      </div>
-
       <div className="main-scroll">
         <div className="form-card snapshot-form-card">
           <div className="form-icon"><Icon name="pin" size={22} /></div>

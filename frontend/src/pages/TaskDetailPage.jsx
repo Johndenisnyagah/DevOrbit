@@ -116,16 +116,6 @@ export default function TaskDetailPage({ onToast }) {
 
   return (
     <>
-      <div className="main-topbar">
-        <div className="topbar-breadcrumb">
-          <Link to="/">Dashboard</Link>
-          <span className="crumb-muted">Task Detail</span>
-        </div>
-        <div className="topbar-right">
-          <Link to="/tasks/new" className="btn-primary"><Icon name="plus" size={15} />New Task</Link>
-        </div>
-      </div>
-
       <div className="main-scroll">
         <div className="detail-layout">
           <div>
