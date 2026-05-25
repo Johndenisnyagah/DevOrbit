@@ -520,13 +520,23 @@ def activity():
 
 @app.route('/api/standup', methods=['GET'])
 def standup():
-    """Build the daily standup summary from task state and today's logs."""
-    conn = get_db()
-    today = datetime.now().strftime('%Y-%m-%d')
+    """Build a daily standup summary from task state and that day's logs.
 
+    Query parameters:
+        date: ISO date (YYYY-MM-DD) to generate the standup for. Defaults
+              to today. Invalid input falls back to today rather than 400ing.
+    """
+    raw = (request.args.get('date') or '').strip()
+    try:
+        target = datetime.strptime(raw, '%Y-%m-%d').date() if raw else datetime.now().date()
+    except ValueError:
+        target = datetime.now().date()
+    day = target.strftime('%Y-%m-%d')
+
+    conn = get_db()
     completed = [row_to_dict(r) for r in conn.execute(
         "SELECT * FROM tasks WHERE status = 'Done' AND DATE(updated_at) = ?",
-        (today,)
+        (day,)
     ).fetchall()]
     in_progress = [row_to_dict(r) for r in conn.execute(
         "SELECT * FROM tasks WHERE status = 'InProgress'"
@@ -540,12 +550,12 @@ def standup():
            WHERE al.event_type = 'Interruption'
            AND DATE(al.timestamp) = ?
            AND t.status != 'Done'""",
-        (today,)
+        (day,)
     ).fetchall()]
     conn.close()
 
     return jsonify({
-        'today': today,
+        'today': day,
         'completed': completed,
         'in_progress': in_progress,
         'paused': paused,

@@ -1131,6 +1131,63 @@ input, textarea { font: inherit; }
   text-transform: uppercase;
   margin-top: 2px;
 }
+.standup__date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.standup__date-nav {
+  width: 26px; height: 26px;
+  display: grid;
+  place-items: center;
+  color: var(--t2);
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+.standup__date-nav:hover:not(:disabled) {
+  color: var(--t1);
+  border-color: var(--line-2);
+  background: rgba(255,255,255,0.05);
+}
+.standup__date-nav:disabled { cursor: not-allowed; opacity: 0.4; }
+.standup__date-input {
+  height: 26px;
+  padding: 0 8px;
+  color: var(--t1);
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color-scheme: dark;
+}
+.standup__date-input:focus {
+  border-color: rgba(255, 58, 134, 0.45);
+  background: rgba(255,255,255,0.04);
+}
+.standup__date-today {
+  height: 26px;
+  padding: 0 10px;
+  color: var(--hot-light);
+  background: rgba(255, 58, 134, 0.08);
+  border: 1px solid rgba(255, 58, 134, 0.28);
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.standup__date-today:hover {
+  background: rgba(255, 58, 134, 0.14);
+  border-color: rgba(255, 58, 134, 0.45);
+}
+
 .standup__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

@@ -12,26 +12,44 @@ import Icon from '../components/Icons'
 import { PageEyebrow } from '../components/Atoms'
 
 const SECTIONS = [
-  { key: 'completed',   label: 'Completed Today',  tone: 'done' },
-  { key: 'in_progress', label: 'In Progress',      tone: 'progress' },
-  { key: 'paused',      label: 'Paused',           tone: 'paused' },
-  { key: 'interrupted', label: 'Interrupted Today', tone: 'alert' },
+  { key: 'completed',   label: 'Completed',         tone: 'done' },
+  { key: 'in_progress', label: 'In Progress',       tone: 'progress' },
+  { key: 'paused',      label: 'Paused',            tone: 'paused' },
+  { key: 'interrupted', label: 'Interrupted',       tone: 'alert' },
 ]
 
+/** Local ISO date (YYYY-MM-DD) without UTC drift. */
+function todayLocal() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** Shift an ISO date by N days. */
+function shiftIso(iso, days) {
+  const d = new Date(`${iso}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export default function StandupPage() {
+  const [date, setDate] = useState(todayLocal())
   const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const summaryRef = useRef(null)
   const navigate = useNavigate()
 
+  const isToday = date === todayLocal()
+
+  // Re-fetch whenever the selected date changes. We keep the old data on
+  // screen while the new payload loads so day-to-day navigation feels
+  // instant; the spinner only appears on the very first load.
   useEffect(() => {
     let cancelled = false
-    api.getStandup()
-      .then(d => { if (!cancelled) setData(d) })
-      .finally(() => { if (!cancelled) setLoading(false) })
+    api.getStandup(date).then(d => { if (!cancelled) setData(d) })
     return () => { cancelled = true }
-  }, [])
+  }, [date])
 
   // Long-form heading like "Monday, May 25" using the today date the backend returned.
   const todayStr = data?.today
@@ -76,7 +94,7 @@ export default function StandupPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  if (loading) return <div className="loading"><div className="spinner" /></div>
+  if (!data) return <div className="loading"><div className="spinner" /></div>
 
   return (
     <>
@@ -84,9 +102,45 @@ export default function StandupPage() {
 
       <div className="standup__hero">
         <div>
-          <div className="panel__label">Today</div>
+          <div className="panel__label">{isToday ? 'Today' : 'Selected Day'}</div>
           <h1>{headingDate}</h1>
           <p>{total} tracked items across {SECTIONS.length} groups</p>
+          <div className="standup__date-row">
+            <button
+              type="button"
+              className="standup__date-nav"
+              onClick={() => setDate(shiftIso(date, -1))}
+              aria-label="Previous day"
+            >
+              <Icon name="chev" size={12} style={{ transform: 'rotate(90deg)' }} />
+            </button>
+            <input
+              type="date"
+              className="standup__date-input"
+              value={date}
+              max={todayLocal()}
+              onChange={e => e.target.value && setDate(e.target.value)}
+              aria-label="Standup date"
+            />
+            <button
+              type="button"
+              className="standup__date-nav"
+              onClick={() => setDate(shiftIso(date, 1))}
+              disabled={isToday}
+              aria-label="Next day"
+            >
+              <Icon name="chev" size={12} style={{ transform: 'rotate(-90deg)' }} />
+            </button>
+            {!isToday && (
+              <button
+                type="button"
+                className="standup__date-today"
+                onClick={() => setDate(todayLocal())}
+              >
+                Today
+              </button>
+            )}
+          </div>
         </div>
         <div className="standup__ring" style={{ '--ring-deg': `${ringDeg}deg` }}>
           <div className="standup__ring-inner">
