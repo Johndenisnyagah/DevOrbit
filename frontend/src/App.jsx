@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import Toast   from './components/Toast'
+import KeyboardShortcuts from './components/KeyboardShortcuts'
 import TasksPage       from './pages/TasksPage'
 import TaskDetailPage  from './pages/TaskDetailPage'
 import TaskCreatePage  from './pages/TaskCreatePage'
@@ -62,6 +63,7 @@ export default function App() {
       </main>
 
       <Toast toasts={toasts} onRemove={removeToast}/>
+      <KeyboardShortcuts />
     </div>
   )
 }
