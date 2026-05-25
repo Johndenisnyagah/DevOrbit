@@ -11,6 +11,114 @@ import { api } from '../api'
 import Icon from '../components/Icons'
 import { fmtFull, statusLabel } from '../helpers'
 
+/**
+ * Snapshot panel with an expandable history disclosure.
+ *
+ * Shows the latest snapshot inline (matching the original behaviour). A
+ * "History (N)" button lazily fetches every snapshot for the task and
+ * renders them in reverse-chronological order beneath the latest entry.
+ */
+function SnapshotPanel({ taskId, latest }) {
+  const [open, setOpen] = useState(false)
+  const [history, setHistory] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleToggle = async () => {
+    const next = !open
+    setOpen(next)
+    if (next && history === null && !loading) {
+      setLoading(true)
+      try {
+        const d = await api.getSnapshots(taskId)
+        setHistory(d.snapshots ?? [])
+      } catch {
+        setHistory([])
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
+
+  // The latest entry is rendered separately above the history list, so
+  // strip it from the rendered older entries to avoid duplication.
+  const older = history?.slice(latest ? 1 : 0) ?? []
+  const olderCount = Math.max(0, (history?.length ?? 0) - (latest ? 1 : 0))
+
+  return (
+    <div className="panel">
+      <div className="panel__head">
+        <span
+          className="panel__label"
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+        >
+          <Icon name="pin" size={13} /> Context Snapshot
+        </span>
+        {latest && (
+          <span className="detail__updated">{fmtFull(latest.created_at)}</span>
+        )}
+      </div>
+
+      {latest ? (
+        <>
+          <div className="snap">{latest.content}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <Link
+              to={`/tasks/${taskId}/snapshot`}
+              className="btn btn--ghost"
+              style={{ height: 32, padding: '0 12px', fontSize: 11 }}
+            >
+              Update Snapshot
+            </Link>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              style={{ height: 32, padding: '0 12px', fontSize: 11 }}
+              onClick={handleToggle}
+            >
+              <Icon
+                name="chev"
+                size={11}
+                style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 160ms ease' }}
+              />
+              {open ? 'Hide history' : 'View history'}
+            </button>
+          </div>
+
+          {open && (
+            <div className="snap-history">
+              {loading && (
+                <div className="snap-history__empty">Loading history…</div>
+              )}
+              {!loading && olderCount === 0 && (
+                <div className="snap-history__empty">No earlier snapshots.</div>
+              )}
+              {!loading && older.map(s => (
+                <div key={s.id} className="snap-history__entry">
+                  <div className="snap-history__date">{fmtFull(s.created_at)}</div>
+                  <div className="snap-history__content">{s.content}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <p style={{ color: 'var(--t3)', lineHeight: 1.6 }}>
+            No context snapshot has been captured yet.
+          </p>
+          <Link
+            to={`/tasks/${taskId}/snapshot`}
+            className="btn btn--ghost"
+            style={{ marginTop: 14, height: 32, padding: '0 12px', fontSize: 11 }}
+          >
+            Save Snapshot
+          </Link>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function TaskDetailPage({ onToast }) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -127,44 +235,8 @@ export default function TaskDetailPage({ onToast }) {
             )}
           </div>
 
-          <div className="panel">
-            <div className="panel__head">
-              <span
-                className="panel__label"
-                style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-              >
-                <Icon name="pin" size={13} /> Context Snapshot
-              </span>
-              {snapshot && (
-                <span className="detail__updated">{fmtFull(snapshot.created_at)}</span>
-              )}
-            </div>
-            {snapshot ? (
-              <>
-                <div className="snap">{snapshot.content}</div>
-                <Link
-                  to={`/tasks/${task.id}/snapshot`}
-                  className="btn btn--ghost"
-                  style={{ marginTop: 14, height: 32, padding: '0 12px', fontSize: 11 }}
-                >
-                  Update Snapshot
-                </Link>
-              </>
-            ) : (
-              <>
-                <p style={{ color: 'var(--t3)', lineHeight: 1.6 }}>
-                  No context snapshot has been captured yet.
-                </p>
-                <Link
-                  to={`/tasks/${task.id}/snapshot`}
-                  className="btn btn--ghost"
-                  style={{ marginTop: 14, height: 32, padding: '0 12px', fontSize: 11 }}
-                >
-                  Save Snapshot
-                </Link>
-              </>
-            )}
-          </div>
+          <SnapshotPanel taskId={task.id} latest={snapshot} />
+
 
           {task.status === 'InProgress' && (
             <div className="panel">

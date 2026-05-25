@@ -818,6 +818,39 @@ input, textarea { font: inherit; }
   letter-spacing: 0.06em;
 }
 
+.snap-history {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.snap-history__empty {
+  color: var(--t4);
+  font-size: 12px;
+  padding: 4px 0;
+}
+.snap-history__entry {
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.022);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.snap-history__date {
+  color: var(--t4);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+.snap-history__content {
+  color: var(--t2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 .interrupt-row {
   display: flex;
   gap: 8px;

@@ -36,6 +36,7 @@ export const api = {
   getTask:        (id)          => req(`/tasks/${id}`),
   updateStatus:   (id, status)  => req(`/tasks/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   saveSnapshot:   (id, content) => req(`/tasks/${id}/snapshot`, { method: 'POST', body: JSON.stringify({ content }) }),
+  getSnapshots:   (id)          => req(`/tasks/${id}/snapshots`),
   logInterrupt:   (id, note)    => req(`/tasks/${id}/interrupt`, { method: 'POST', body: JSON.stringify({ note }) }),
   getStandup:     (date)        => req(date ? `/standup?date=${encodeURIComponent(date)}` : '/standup'),
   getActivity:    (limit = 100) => req(`/activity?limit=${limit}`),

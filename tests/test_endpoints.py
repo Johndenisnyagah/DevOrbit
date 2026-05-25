@@ -84,3 +84,19 @@ def test_snapshot_save_logs_event(client):
 
     detail = client.get(f'/api/tasks/{task["id"]}').get_json()
     assert any(log['event_type'] == 'Snapshot' for log in detail['logs'])
+
+
+def test_snapshot_history_returns_all_versions(client):
+    task = client.post('/api/tasks', json={'title': 't'}).get_json()
+    client.post(f'/api/tasks/{task["id"]}/snapshot', json={'content': 'v1'})
+    client.post(f'/api/tasks/{task["id"]}/snapshot', json={'content': 'v2'})
+    client.post(f'/api/tasks/{task["id"]}/snapshot', json={'content': 'v3'})
+
+    history = client.get(f'/api/tasks/{task["id"]}/snapshots').get_json()
+    contents = [s['content'] for s in history['snapshots']]
+    assert contents == ['v3', 'v2', 'v1']  # newest first
+
+
+def test_snapshot_history_404_for_unknown_task(client):
+    res = client.get('/api/tasks/9999/snapshots')
+    assert res.status_code == 404

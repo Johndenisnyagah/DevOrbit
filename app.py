@@ -262,6 +262,30 @@ def save_snapshot(task_id):
     return jsonify({'snapshot': snapshot})
 
 
+@app.route('/api/tasks/<int:task_id>/snapshots', methods=['GET'])
+def list_snapshots(task_id):
+    """Return every snapshot saved for a task, newest first.
+
+    The task detail view shows only the latest snapshot in the main
+    panel; this endpoint backs the "history" disclosure beneath it.
+    """
+    conn = get_db()
+    task = row_to_dict(conn.execute(
+        "SELECT id FROM tasks WHERE id = ?", (task_id,)
+    ).fetchone())
+    if not task:
+        conn.close()
+        return jsonify({'error': 'Task not found.'}), 404
+
+    snapshots = [row_to_dict(r) for r in conn.execute(
+        "SELECT * FROM context_snapshots WHERE task_id = ? "
+        "ORDER BY created_at DESC, id DESC",
+        (task_id,)
+    ).fetchall()]
+    conn.close()
+    return jsonify({'snapshots': snapshots})
+
+
 @app.route('/api/tasks/<int:task_id>/interrupt', methods=['POST'])
 def log_interruption(task_id):
     """Record an interruption note for a task."""
