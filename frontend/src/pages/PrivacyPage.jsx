@@ -2,19 +2,16 @@
  * Privacy page.
  *
  * Three sections:
- *   - Data Retention toggles: presentational controls for how long different
- *     event types are kept on disk.
- *   - Snapshot Scope toggles: presentational controls for what to include in
- *     a context snapshot.
- *   - Export & Danger Zone: working JSON exports of tasks and activity logs,
- *     plus a danger-toned clear-local-preferences action.
+ *   - Data Retention toggles, persisted via `/api/settings`.
+ *   - Snapshot Scope toggles, persisted via `/api/settings`.
+ *   - Export & Danger Zone: working JSON exports plus a clear-local-storage
+ *     action.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api'
 import Icon from '../components/Icons'
 import { PageEyebrow } from '../components/Atoms'
 
-/** Mirror the PrefsToggle from PreferencesPage so styles stay consistent. */
 function PrefsToggle({ label, sub, value, onChange }) {
   return (
     <div className="prefs__row">
@@ -49,20 +46,57 @@ function downloadJson(filename, data) {
   setTimeout(() => URL.revokeObjectURL(url), 500)
 }
 
-const DEFAULTS = {
-  keepInterrupts: true,
-  keepStatusHistory: true,
-  autoDeleteDone: false,
-  snapDescription: true,
-  snapBlockers: true,
-  snapNextStep: true,
-  shareAnonymized: false,
+const KEYS = [
+  'keepInterrupts', 'keepStatusHistory', 'autoDeleteDone',
+  'snapDescription', 'snapBlockers', 'snapNextStep', 'shareAnonymized',
+]
+
+function slice(settings) {
+  const out = {}
+  for (const k of KEYS) if (k in settings) out[k] = settings[k]
+  return out
 }
 
 export default function PrivacyPage({ onToast }) {
-  const [state, setState] = useState(DEFAULTS)
+  const [state, setState] = useState(null)
+  const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api.getSettings()
+      .then(d => { if (!cancelled) setState(slice(d)) })
+      .catch(e => onToast?.(e.message, 'error'))
+    return () => { cancelled = true }
+  }, [onToast])
+
   const set = (k, v) => setState(s => ({ ...s, [k]: v }))
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const next = await api.updateSettings(state)
+      setState(slice(next))
+      onToast?.('Privacy preferences saved.')
+    } catch (e) {
+      onToast?.(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleReset = async () => {
+    setSaving(true)
+    try {
+      const next = await api.resetSettings()
+      setState(slice(next))
+      onToast?.('Privacy preferences reset to defaults.')
+    } catch (e) {
+      onToast?.(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -102,6 +136,8 @@ export default function PrivacyPage({ onToast }) {
     }
   }
 
+  if (!state) return <div className="loading"><div className="spinner" /></div>
+
   return (
     <>
       <PageEyebrow kicker="Retention · Scope · Export" title="Privacy" />
@@ -118,19 +154,19 @@ export default function PrivacyPage({ onToast }) {
             <PrefsToggle
               label="Keep interruption history"
               sub="Persist Interruption log entries indefinitely."
-              value={state.keepInterrupts}
+              value={!!state.keepInterrupts}
               onChange={v => set('keepInterrupts', v)}
             />
             <PrefsToggle
               label="Keep full status history"
               sub="Persist every StatusChange event. Disable to keep only the latest."
-              value={state.keepStatusHistory}
+              value={!!state.keepStatusHistory}
               onChange={v => set('keepStatusHistory', v)}
             />
             <PrefsToggle
               label="Auto-delete Done tasks after 30 days"
               sub="Completed tasks and their logs are purged after a month."
-              value={state.autoDeleteDone}
+              value={!!state.autoDeleteDone}
               onChange={v => set('autoDeleteDone', v)}
             />
           </div>
@@ -147,25 +183,25 @@ export default function PrivacyPage({ onToast }) {
             <PrefsToggle
               label="Include task description"
               sub="Snapshots reference the task description for resume context."
-              value={state.snapDescription}
+              value={!!state.snapDescription}
               onChange={v => set('snapDescription', v)}
             />
             <PrefsToggle
               label="Include blockers"
               sub="Carry over any blockers noted during the work session."
-              value={state.snapBlockers}
+              value={!!state.snapBlockers}
               onChange={v => set('snapBlockers', v)}
             />
             <PrefsToggle
               label="Include next step"
               sub="Prompt for the next command, file, or check when saving."
-              value={state.snapNextStep}
+              value={!!state.snapNextStep}
               onChange={v => set('snapNextStep', v)}
             />
             <PrefsToggle
               label="Share anonymized analytics"
               sub="Send anonymized usage stats to help improve DevOrbit. Off by default."
-              value={state.shareAnonymized}
+              value={!!state.shareAnonymized}
               onChange={v => set('shareAnonymized', v)}
             />
           </div>
@@ -222,16 +258,18 @@ export default function PrivacyPage({ onToast }) {
           <button
             type="button"
             className="btn btn--ghost"
-            onClick={() => setState(DEFAULTS)}
+            onClick={handleReset}
+            disabled={saving}
           >
             Reset to defaults
           </button>
           <button
             type="button"
             className="btn btn--primary"
-            onClick={() => onToast?.('Privacy preferences saved.')}
+            onClick={handleSave}
+            disabled={saving}
           >
-            <Icon name="check" size={13} /> Save changes
+            <Icon name="check" size={13} /> {saving ? 'Saving' : 'Save changes'}
           </button>
         </div>
       </div>

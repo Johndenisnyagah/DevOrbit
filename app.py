@@ -5,6 +5,7 @@ task workflow state machine, cognitive-load metadata, context snapshots,
 interruption logging, and daily standup aggregation.
 """
 
+import json
 from datetime import datetime
 
 from flask import Flask, jsonify, request
@@ -244,6 +245,93 @@ def log_interruption(task_id):
         log_event(task_id, 'Interruption', note)
 
     return jsonify({'ok': True})
+
+
+# Settings endpoints
+
+# Default values returned when a setting has never been written. Keeping the
+# defaults server-side means new clients get sensible state without writing
+# anything, and lets us evolve the schema without breaking older callers.
+DEFAULT_SETTINGS = {
+    # Profile
+    'name':           'John Dennis',
+    'role':           'Senior Engineer',
+    'email':          'john.dennis@orbit.dev',
+    # Workflow
+    'autoSnap':       True,
+    'cogLoad':        True,
+    # Notifications
+    'emailDigest':    False,
+    'slackNotif':     True,
+    'weeklyReport':   True,
+    # Privacy · retention
+    'keepInterrupts':    True,
+    'keepStatusHistory': True,
+    'autoDeleteDone':    False,
+    # Privacy · snapshot scope
+    'snapDescription': True,
+    'snapBlockers':    True,
+    'snapNextStep':    True,
+    'shareAnonymized': False,
+}
+
+
+def load_settings(conn):
+    """Return the merged settings dict (defaults + persisted overrides)."""
+    rows = conn.execute("SELECT key, value FROM settings").fetchall()
+    merged = dict(DEFAULT_SETTINGS)
+    for row in rows:
+        try:
+            merged[row['key']] = json.loads(row['value'])
+        except (json.JSONDecodeError, TypeError):
+            merged[row['key']] = row['value']
+    return merged
+
+
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    """Return the current user settings as a single JSON object."""
+    conn = get_db()
+    settings = load_settings(conn)
+    conn.close()
+    return jsonify(settings)
+
+
+@app.route('/api/settings', methods=['PUT'])
+def update_settings():
+    """Upsert a partial settings patch and return the merged result.
+
+    The body must be a JSON object; each key is stored as a JSON-encoded
+    string so we can round-trip booleans, numbers, and strings uniformly.
+    Unknown keys are accepted and persisted as-is, so the frontend can grow
+    the settings surface without coordinated backend changes.
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Body must be a JSON object.'}), 400
+
+    conn = get_db()
+    for key, value in data.items():
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (str(key), json.dumps(value))
+        )
+    conn.commit()
+    settings = load_settings(conn)
+    conn.close()
+    return jsonify(settings)
+
+
+@app.route('/api/settings/reset', methods=['POST'])
+def reset_settings():
+    """Wipe persisted settings so subsequent GETs return defaults."""
+    conn = get_db()
+    conn.execute("DELETE FROM settings")
+    conn.commit()
+    settings = load_settings(conn)
+    conn.close()
+    return jsonify(settings)
 
 
 # Activity endpoints

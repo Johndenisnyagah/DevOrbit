@@ -57,6 +57,11 @@ def init_db():
             content    TEXT    NOT NULL,
             timestamp  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
         );
+
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
     ''')
 
     conn.commit()
