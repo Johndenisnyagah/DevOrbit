@@ -311,6 +311,19 @@ cd frontend
 npm run lint
 ```
 
+Run frontend tests (Vitest):
+
+```bash
+cd frontend
+npm test
+```
+
+Run backend tests (pytest):
+
+```bash
+python -m pytest
+```
+
 Build the frontend:
 
 ```bash

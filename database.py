@@ -17,8 +17,13 @@ def get_db():
 
     Rows are returned as sqlite3.Row objects so callers can access values by
     column name before converting them to dictionaries for JSON responses.
+
+    Tests can point the connection at a fresh database by either setting
+    the ``DEVORBIT_DB_PATH`` environment variable before importing this
+    module, or by monkeypatching ``database.DB_PATH`` directly.
     """
-    conn = sqlite3.connect(DB_PATH)
+    path = os.environ.get('DEVORBIT_DB_PATH', DB_PATH)
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
