@@ -20,52 +20,55 @@ const SORT_OPTIONS = [
 const PRIORITY_ORDER = { High: 0, Medium: 1, Low: 2 }
 
 /**
- * Build the 7-day bar chart data for the dashboard.
+ * Map the backend's per-day event series into render-ready bars.
  *
- * Combines real task updates with a small deterministic baseline so the
- * chart still reads as "lively" on quiet days.
+ * Bars scale to the busiest day in the window: the tallest day is 100%
+ * of the chart's bar area, every other day is its fraction of that max,
+ * and zero-count days collapse to a small visible stub so the gap reads
+ * as "no activity" rather than "missing data".
  */
-function buildChartData(tasks, today) {
-  const days = []
-  const base = new Date(today + 'T00:00:00')
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(base.getTime() - i * 86400000)
-    const iso = d.toISOString().slice(0, 10)
-    const day = d.getDate()
-    const mo = d.toLocaleString('en-US', { month: 'short' }).toUpperCase()
-    const events = tasks.filter(t => (t.updated_at || '').startsWith(iso)).length
-    const baseline = 3 + ((i * 37 + 11) % 4)
-    days.push({ iso, day, mo, count: events, total: events + baseline, isToday: i === 0 })
-  }
-  const max = Math.max(1, ...days.map(d => d.total))
-  return days.map(d => ({ ...d, pct: 58 + (d.total / max) * 32 }))
-}
-
-/** Today's date in local YYYY-MM-DD form (matches the Flask backend). */
-function today() {
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+function buildChartData(series) {
+  const max = Math.max(1, ...series.map(d => d.count))
+  return series.map(d => {
+    const date = new Date(`${d.date}T00:00:00`)
+    const fraction = d.count / max
+    // 8% baseline keeps an empty day visible without faking activity.
+    const pct = d.count === 0 ? 8 : 12 + fraction * 88
+    return {
+      iso: d.date,
+      day: date.getDate(),
+      mo: date.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
+      count: d.count,
+      isToday: d.is_today,
+      pct,
+    }
+  })
 }
 
 export default function TasksPage({ onToast }) {
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [interruptCount, setInterruptCount] = useState(0)
+  const [daily, setDaily] = useState([])
   const [loading, setLoading] = useState(true)
   const [sort, setSort] = useState('updated_at')
   const [sortOpen, setSortOpen] = useState(false)
   const sortRef = useRef(null)
 
-  // Load tasks. Also pull the standup payload so we can show today's
-  // interruption count in the stats pair.
+  // Load tasks + today's standup (for the interruption count) + the
+  // per-day activity series the chart renders.
   useEffect(() => {
     let cancelled = false
-    Promise.all([api.getTasks(), api.getStandup().catch(() => null)])
-      .then(([tasks, standup]) => {
+    Promise.all([
+      api.getTasks(),
+      api.getStandup().catch(() => null),
+      api.getActivityDaily(7).catch(() => ({ series: [] })),
+    ])
+      .then(([tasks, standup, dailySeries]) => {
         if (cancelled) return
         setData(tasks)
         setInterruptCount(standup?.interrupted?.length ?? 0)
+        setDaily(dailySeries?.series ?? [])
       })
       .catch(e => onToast?.(e.message, 'error'))
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -82,7 +85,7 @@ export default function TasksPage({ onToast }) {
   }, [])
 
   const tasks = useMemo(() => data?.tasks ?? [], [data?.tasks])
-  const chartData = useMemo(() => buildChartData(tasks, today()), [tasks])
+  const chartData = useMemo(() => buildChartData(daily), [daily])
   const sevenDay = chartData.reduce((s, d) => s + d.count, 0)
 
   const total = tasks.length

@@ -38,6 +38,7 @@ export const api = {
   logInterrupt:   (id, note)    => req(`/tasks/${id}/interrupt`, { method: 'POST', body: JSON.stringify({ note }) }),
   getStandup:     ()            => req('/standup'),
   getActivity:    (limit = 100) => req(`/activity?limit=${limit}`),
+  getActivityDaily: (days = 7)  => req(`/activity/daily?days=${days}`),
   getSettings:    ()            => req('/settings'),
   updateSettings: (patch)       => req('/settings', { method: 'PUT', body: JSON.stringify(patch) }),
   resetSettings:  ()            => req('/settings/reset', { method: 'POST' }),

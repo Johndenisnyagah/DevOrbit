@@ -336,6 +336,47 @@ def reset_settings():
 
 # Activity endpoints
 
+@app.route('/api/activity/daily', methods=['GET'])
+def activity_daily():
+    """Return per-day event counts for a trailing window.
+
+    Used by the dashboard chart. Returns one row per day in the window
+    (including zero-count days), most recent last, so the frontend can
+    render bars without filling gaps client-side.
+
+    Query parameters:
+        days: Window size in days. Defaults to 7. Clamped to [1, 60].
+    """
+    try:
+        days = max(1, min(int(request.args.get('days', 7)), 60))
+    except (TypeError, ValueError):
+        days = 7
+
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT DATE(timestamp) AS day, COUNT(*) AS count
+           FROM activity_logs
+           WHERE DATE(timestamp) >= DATE('now', 'localtime', ?)
+           GROUP BY day""",
+        (f'-{days - 1} days',)
+    ).fetchall()
+    conn.close()
+    counts = {row['day']: row['count'] for row in rows}
+
+    today = datetime.now().date()
+    series = []
+    for i in range(days - 1, -1, -1):
+        d = today.fromordinal(today.toordinal() - i)
+        iso = d.strftime('%Y-%m-%d')
+        series.append({
+            'date':    iso,
+            'count':   counts.get(iso, 0),
+            'is_today': i == 0,
+        })
+
+    return jsonify({'days': days, 'series': series})
+
+
 @app.route('/api/activity', methods=['GET'])
 def activity():
     """Return recent activity logs joined with their task metadata.
