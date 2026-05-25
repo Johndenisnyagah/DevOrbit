@@ -246,6 +246,54 @@ def log_interruption(task_id):
     return jsonify({'ok': True})
 
 
+# Activity endpoints
+
+@app.route('/api/activity', methods=['GET'])
+def activity():
+    """Return recent activity logs joined with their task metadata.
+
+    Powers the Security page audit trail. Each log entry is enriched with
+    the task title, priority, and current status so the audit feed can be
+    rendered without N+1 calls from the frontend.
+    """
+    try:
+        limit = max(1, min(int(request.args.get('limit', 100)), 500))
+    except (TypeError, ValueError):
+        limit = 100
+
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT al.id, al.task_id, al.event_type, al.content, al.timestamp,
+                  t.title AS task_title, t.priority AS task_priority, t.status AS task_status
+           FROM activity_logs al
+           JOIN tasks t ON t.id = al.task_id
+           ORDER BY al.timestamp DESC, al.id DESC
+           LIMIT ?""",
+        (limit,)
+    ).fetchall()
+    logs = [row_to_dict(r) for r in rows]
+
+    totals = conn.execute(
+        """SELECT
+             COUNT(*) AS total,
+             SUM(CASE WHEN event_type = 'StatusChange' THEN 1 ELSE 0 END) AS status_changes,
+             SUM(CASE WHEN event_type = 'Snapshot'     THEN 1 ELSE 0 END) AS snapshots,
+             SUM(CASE WHEN event_type = 'Interruption' THEN 1 ELSE 0 END) AS interruptions
+           FROM activity_logs"""
+    ).fetchone()
+    conn.close()
+
+    return jsonify({
+        'logs': logs,
+        'totals': {
+            'total':          totals['total']          or 0,
+            'status_changes': totals['status_changes'] or 0,
+            'snapshots':      totals['snapshots']      or 0,
+            'interruptions':  totals['interruptions']  or 0,
+        }
+    })
+
+
 # Standup endpoints
 
 @app.route('/api/standup', methods=['GET'])

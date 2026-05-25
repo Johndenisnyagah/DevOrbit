@@ -37,4 +37,5 @@ export const api = {
   saveSnapshot:   (id, content) => req(`/tasks/${id}/snapshot`, { method: 'POST', body: JSON.stringify({ content }) }),
   logInterrupt:   (id, note)    => req(`/tasks/${id}/interrupt`, { method: 'POST', body: JSON.stringify({ note }) }),
   getStandup:     ()            => req('/standup'),
+  getActivity:    (limit = 100) => req(`/activity?limit=${limit}`),
 }

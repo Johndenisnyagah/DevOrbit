@@ -1,116 +1,81 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Icon from './Icons'
 
-// Filter definitions are kept close to the sidebar because they drive both the
-// visible navigation labels and the count calculations.
-const STATUS_ITEMS = [
-  { key: 'all', label: 'All Tasks' },
-  { key: 'ToDo', label: 'To Do' },
-  { key: 'InProgress', label: 'In Progress' },
-  { key: 'Paused', label: 'Paused' },
-  { key: 'Done', label: 'Done' },
+const NAV_ITEMS = [
+  { key: 'dashboard', label: 'Dashboard',  icon: 'dashboard', path: '/' },
+  { key: 'tree',      label: 'Task Tree',  icon: 'tree',      path: '/tree' },
+  { key: 'standup',   label: 'Standup',    icon: 'report',    path: '/standup' },
+  { key: 'security',  label: 'Security',   icon: 'shield',    path: '/security' },
+  { key: 'privacy',   label: 'Privacy',    icon: 'lock',      path: '/privacy' },
 ]
 
-const PRIORITY_ITEMS = [
-  { key: 'all', label: 'All Priorities' },
-  { key: 'High', label: 'High' },
-  { key: 'Medium', label: 'Medium' },
-  { key: 'Low', label: 'Low' },
-]
+const USER = { name: 'John Dennis', role: 'Senior Engineer' }
 
 /**
- * Persistent application navigation and task filter panel.
+ * Persistent application navigation rail.
  *
- * The sidebar receives the shared task list from the app shell so counts remain
- * accurate across dashboard, detail, create, snapshot, and standup routes.
+ * Mirrors the DevOrbit design: profile block at the top, five navigation
+ * items, a flex spacer, then a footer with a focus quote and a Preferences
+ * CTA. Active state is derived from the current route.
  */
-export default function Sidebar({ tasks = [], activeStatus, activePriority, onFilter }) {
-  const [tab, setTab] = useState('status')
-  const [search, setSearch] = useState('')
+export default function Sidebar() {
+  const location = useLocation()
   const navigate = useNavigate()
 
-  /** Count tasks for the selected status or priority filter. */
-  const countFor = (key, field) => {
-    if (key === 'all') return tasks.length
-    return tasks.filter(t => t[field] === key).length
-  }
+  const initials = USER.name
+    .split(/\s+/)
+    .map(s => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
 
-  const items = tab === 'status' ? STATUS_ITEMS : PRIORITY_ITEMS
-  const field = tab === 'status' ? 'status' : 'priority'
-  const active = tab === 'status' ? activeStatus : activePriority
-
-  /** Submit sidebar search by encoding it into the dashboard query string. */
-  const handleSearchKey = (e) => {
-    if (e.key === 'Enter' && search.trim()) {
-      navigate(`/?search=${encodeURIComponent(search.trim())}`)
-    }
+  const isActive = (path) => {
+    if (path === '/') return location.pathname === '/' || location.pathname.startsWith('/tasks')
+    return location.pathname === path || location.pathname.startsWith(path + '/')
   }
+  const prefsActive = location.pathname === '/preferences'
 
   return (
-    <aside className="sidebar-panel" aria-label="Task filters">
-      <div className="profile-block">
-        <div className="avatar-tile">
-          <Icon name="user" size={18} />
+    <aside className="sidebar" aria-label="Primary">
+      <div className="profile">
+        <div className="avatar">
+          <span className="avatar__initials">{initials}</span>
         </div>
-        <div>
-          <div className="profile-name">DevOrbit</div>
-          <div className="profile-role">Developer focus desk</div>
-        </div>
-      </div>
-
-      <div className="sidebar-search">
-        <div className="search-input-wrap">
-          <Icon name="search" size={14} />
-          <input
-            className="search-input"
-            placeholder="Search tasks"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={handleSearchKey}
-          />
+        <div className="profile__text">
+          <div className="profile__name">{USER.name}</div>
+          <div className="profile__role">{USER.role}</div>
         </div>
       </div>
 
-      <div className="sidebar-nav">
-        <NavLink to="/" className={({ isActive }) => `nav-row${isActive ? ' active' : ''}`}>
-          <Icon name="dashboard" size={16} />
-          <span>Dashboard</span>
-        </NavLink>
-        <NavLink to="/standup" className={({ isActive }) => `nav-row${isActive ? ' active' : ''}`}>
-          <Icon name="standup" size={16} />
-          <span>Standup</span>
-        </NavLink>
-      </div>
-
-      <div className="sidebar-tabs" role="tablist" aria-label="Filter type">
-        <button type="button" className={`sidebar-tab${tab === 'status' ? ' active' : ''}`} onClick={() => setTab('status')}>
-          Status
-        </button>
-        <button type="button" className={`sidebar-tab${tab === 'priority' ? ' active' : ''}`} onClick={() => setTab('priority')}>
-          Priority
-        </button>
-      </div>
-
-      <div className="sidebar-tree">
-        {items.map(item => (
+      <nav className="nav" aria-label="Sections">
+        {NAV_ITEMS.map(item => (
           <button
             key={item.key}
             type="button"
-            className={`tree-item ${field}-${item.key}${active === item.key ? ' active' : ''}`}
-            onClick={() => onFilter(field, item.key)}
+            className={`nav__item${isActive(item.path) ? ' nav__item--active' : ''}`}
+            onClick={() => navigate(item.path)}
           >
-            <span className="tree-item-icon" />
-            <span className="tree-item-label">{item.label}</span>
-            <span className="tree-item-count">{countFor(item.key, field)}</span>
+            <Icon name={item.icon} size={15} />
+            <span>{item.label}</span>
           </button>
         ))}
-      </div>
+      </nav>
 
-      <NavLink to="/tasks/new" className="sidebar-create">
-        <Icon name="plus" size={16} />
-        <span>New Task</span>
-      </NavLink>
+      <div className="sidebar__divider" />
+
+      <div className="sidebar__footer">
+        <p className="sidebar__quote">
+          Save context before you switch. Future-you is a stranger; leave them a note.
+        </p>
+        <button
+          type="button"
+          className={`sidebar__cta${prefsActive ? ' sidebar__cta--active' : ''}`}
+          onClick={() => navigate('/preferences')}
+        >
+          Preferences
+        </button>
+      </div>
     </aside>
   )
 }

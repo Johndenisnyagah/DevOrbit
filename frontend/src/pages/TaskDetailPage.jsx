@@ -1,27 +1,16 @@
 /**
  * Task detail page.
  *
- * Shows the active task, server-approved next actions, the latest context
- * snapshot, interruption logging, and the complete activity feed.
+ * Two-column layout: a stacked main column (header, snapshot, interruption
+ * logger) and a sidebar Activity Log fed by the backend. Status transitions
+ * dispatch through the server-validated state machine.
  */
 import { useEffect, useState } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api'
 import Icon from '../components/Icons'
+import { fmtFull, statusLabel } from '../helpers'
 
-const STATUS_LABEL = {
-  ToDo: 'To Do',
-  InProgress: 'In Progress',
-  Paused: 'Paused',
-  Done: 'Done',
-}
-
-/**
- * Render a single task with workflow controls and history.
- *
- * @param {object} props
- * @param {(message: string, type?: string) => void} props.onToast Toast dispatcher.
- */
 export default function TaskDetailPage({ onToast }) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -36,18 +25,12 @@ export default function TaskDetailPage({ onToast }) {
     setData(next)
   }
 
-  // Load the task from the route ID and return to the dashboard if it no longer
-  // exists or cannot be fetched.
   useEffect(() => {
     let cancelled = false
     api.getTask(id)
-      .then(next => {
-        if (!cancelled) setData(next)
-      })
+      .then(next => { if (!cancelled) setData(next) })
       .catch(() => navigate('/'))
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
+      .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [id, navigate])
 
@@ -55,7 +38,7 @@ export default function TaskDetailPage({ onToast }) {
   const handleStatus = async (status) => {
     try {
       const res = await api.updateStatus(id, status)
-      onToast?.(`Status updated to ${STATUS_LABEL[status] ?? status}`)
+      onToast?.(`Status updated to ${statusLabel(status)}`)
       if (res.redirect_snapshot) {
         navigate(`/tasks/${id}/snapshot`)
       } else {
@@ -83,124 +66,150 @@ export default function TaskDetailPage({ onToast }) {
     }
   }
 
-  if (loading) return <div className="loading-page"><div className="spinner" /></div>
+  if (loading) return <div className="loading"><div className="spinner" /></div>
   if (!data) return null
 
   const { task, logs, snapshot, valid_next } = data
+  // Activity Log shows newest first; the backend returns DESC already.
 
   /** Render the correct action button for each server-provided next status. */
   const actionBtn = (status) => {
-    const isResume = status === 'InProgress' && task.status !== 'ToDo'
-    const map = {
-      InProgress: (
-        <button key={status} type="button" className="btn-start" onClick={() => handleStatus(status)}>
-          <Icon name={isResume ? 'rotate' : 'play'} size={15} />
-          {isResume ? 'Resume Task' : 'Start Task'}
+    if (status === 'InProgress') {
+      const isResume = task.status === 'Paused'
+      return (
+        <button key={status} type="button" className="btn btn--start" onClick={() => handleStatus(status)}>
+          <Icon name={isResume ? 'rotate' : 'play'} size={13} />
+          {isResume ? 'Resume' : 'Start'}
         </button>
-      ),
-      Paused: (
-        <button key={status} type="button" className="btn-pause" onClick={() => handleStatus(status)}>
-          <Icon name="pause" size={15} />
-          Pause Task
-        </button>
-      ),
-      Done: (
-        <button key={status} type="button" className="btn-done" onClick={() => handleStatus(status)}>
-          <Icon name="check" size={15} />
-          Mark Done
-        </button>
-      ),
+      )
     }
-    return map[status] ?? null
+    if (status === 'Paused') {
+      return (
+        <button key={status} type="button" className="btn btn--pause" onClick={() => handleStatus(status)}>
+          <Icon name="pause" size={13} /> Pause
+        </button>
+      )
+    }
+    if (status === 'Done') {
+      return (
+        <button key={status} type="button" className="btn btn--done" onClick={() => handleStatus(status)}>
+          <Icon name="check" size={13} /> Mark Done
+        </button>
+      )
+    }
+    return null
   }
 
   return (
     <>
-      <div className="main-scroll">
-        <div className="detail-layout">
-          <div>
-            <div className="detail-card hero-detail-card">
-              <div className="detail-meta">
-                <span className={`badge p-${task.priority}`}>{task.priority}</span>
-                <span className={`badge s-${task.status}`}>{STATUS_LABEL[task.status] ?? task.status}</span>
-                <span className="detail-updated">{task.updated_at?.slice(0, 16)}</span>
-              </div>
-              <h1 className="detail-title">{task.title}</h1>
-              {task.description && <p className="detail-desc">{task.description}</p>}
+      <div style={{ marginBottom: 22 }}>
+        <div className="eyebrow">Task #{String(task.id).padStart(3, '0')} · Detail</div>
+      </div>
 
-              {valid_next.length > 0 && (
-                <div className="action-panel">
-                  <div className="panel-label">Actions</div>
-                  <div className="action-btns">
-                    {valid_next.map(actionBtn)}
-                  </div>
-                </div>
-              )}
+      <div className="detail">
+        <div className="detail__main">
+          <div className="panel">
+            <div className="detail__meta">
+              <span className={`badge p-${task.priority}`}>{task.priority}</span>
+              <span className={`badge s-${task.status}`}>{statusLabel(task.status)}</span>
+              <span className="detail__updated">UPDATED · {fmtFull(task.updated_at)}</span>
             </div>
+            <h1 className="detail__title">{task.title}</h1>
+            {task.description && <p className="detail__desc">{task.description}</p>}
 
-            {(snapshot || task.status !== 'Done') && (
-              <div className="detail-card">
-                <div className="detail-card-title">
-                  <Icon name="pin" size={15} />
-                  Context Snapshot
+            {valid_next?.length > 0 && (
+              <div className="detail__actions">
+                <div className="panel__label">Actions</div>
+                <div className="detail__actions-row">
+                  {valid_next.map(actionBtn)}
                 </div>
-                {snapshot ? (
-                  <>
-                    <div className="snapshot-text">{snapshot.content}</div>
-                    <div className="micro-date">{snapshot.created_at?.slice(0, 16)}</div>
-                    <Link to={`/tasks/${task.id}/snapshot`} className="btn-ghost btn-sm">Update Snapshot</Link>
-                  </>
-                ) : (
-                  <>
-                    <p className="muted-copy">No context snapshot has been captured yet.</p>
-                    <Link to={`/tasks/${task.id}/snapshot`} className="btn-ghost btn-sm">Save Snapshot</Link>
-                  </>
-                )}
-              </div>
-            )}
-
-            {task.status === 'InProgress' && (
-              <div className="detail-card interrupt-card">
-                <div className="detail-card-title">
-                  <Icon name="alert" size={15} />
-                  Log an Interruption
-                </div>
-                <form onSubmit={handleInterrupt}>
-                  <div className="interrupt-row">
-                    <input
-                      className="form-input interrupt-input"
-                      placeholder="What pulled you away?"
-                      value={interrupt}
-                      onChange={e => setInterrupt(e.target.value)}
-                      required
-                    />
-                    <button type="submit" className="btn-interrupt" disabled={submitting}>
-                      {submitting ? 'Logging' : 'Log'}
-                    </button>
-                  </div>
-                </form>
               </div>
             )}
           </div>
 
-          <div className="detail-card activity-card">
-            <div className="detail-card-title">Activity Log</div>
-            {logs.length > 0 ? (
-              <div className="activity-feed">
-                {logs.map(log => (
-                  <div key={log.id} className={`activity-entry ev-${log.event_type}`}>
-                    <div className="activity-pip" />
-                    <div className="activity-body">
-                      <div className="activity-kind">{log.event_type}</div>
-                      <div className="activity-text">{log.content}</div>
-                      <span className="activity-when">{log.timestamp?.slice(0, 16)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div className="panel">
+            <div className="panel__head">
+              <span
+                className="panel__label"
+                style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                <Icon name="pin" size={13} /> Context Snapshot
+              </span>
+              {snapshot && (
+                <span className="detail__updated">{fmtFull(snapshot.created_at)}</span>
+              )}
+            </div>
+            {snapshot ? (
+              <>
+                <div className="snap">{snapshot.content}</div>
+                <Link
+                  to={`/tasks/${task.id}/snapshot`}
+                  className="btn btn--ghost"
+                  style={{ marginTop: 14, height: 32, padding: '0 12px', fontSize: 11 }}
+                >
+                  Update Snapshot
+                </Link>
+              </>
             ) : (
-              <p className="muted-copy">No activity yet.</p>
+              <>
+                <p style={{ color: 'var(--t3)', lineHeight: 1.6 }}>
+                  No context snapshot has been captured yet.
+                </p>
+                <Link
+                  to={`/tasks/${task.id}/snapshot`}
+                  className="btn btn--ghost"
+                  style={{ marginTop: 14, height: 32, padding: '0 12px', fontSize: 11 }}
+                >
+                  Save Snapshot
+                </Link>
+              </>
             )}
+          </div>
+
+          {task.status === 'InProgress' && (
+            <div className="panel">
+              <div className="panel__head">
+                <span
+                  className="panel__label"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                >
+                  <Icon name="alert" size={13} /> Log an Interruption
+                </span>
+              </div>
+              <form className="interrupt-row" onSubmit={handleInterrupt}>
+                <input
+                  className="field"
+                  placeholder="What pulled you away?"
+                  value={interrupt}
+                  onChange={e => setInterrupt(e.target.value)}
+                />
+                <button type="submit" className="btn btn--alert" disabled={submitting}>
+                  {submitting ? 'Logging' : 'Log'}
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+
+        <div className="panel">
+          <div className="panel__head">
+            <span className="panel__label">Activity Log</span>
+            <span className="sect__count">{logs.length}</span>
+          </div>
+          <div className="feed">
+            {logs.length === 0 && (
+              <p style={{ color: 'var(--t3)' }}>No activity yet.</p>
+            )}
+            {logs.map(log => (
+              <div key={log.id} className={`feed__entry ev-${log.event_type}`}>
+                <span className="feed__pip" />
+                <div>
+                  <div className="feed__kind">{log.event_type}</div>
+                  <div className="feed__text">{log.content}</div>
+                  <span className="feed__when">{fmtFull(log.timestamp)}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
