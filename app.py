@@ -334,6 +334,68 @@ def reset_settings():
     return jsonify(settings)
 
 
+# Dashboard endpoint
+
+@app.route('/api/dashboard', methods=['GET'])
+def dashboard():
+    """Bundle every payload the dashboard needs into a single response.
+
+    The dashboard previously fired three parallel requests (tasks, standup
+    for the interruption count, and the daily activity series). Folding
+    them into one trip removes coordination on the frontend and lets the
+    backend reuse its open SQLite connection.
+    """
+    try:
+        days = max(1, min(int(request.args.get('days', 7)), 60))
+    except (TypeError, ValueError):
+        days = 7
+
+    conn = get_db()
+    today = datetime.now().strftime('%Y-%m-%d')
+
+    tasks = [row_to_dict(r) for r in conn.execute(
+        "SELECT * FROM tasks ORDER BY updated_at DESC"
+    ).fetchall()]
+    active_count = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM tasks WHERE status = 'InProgress'"
+    ).fetchone()['cnt']
+    interrupted_today = conn.execute(
+        """SELECT COUNT(DISTINCT task_id) AS cnt FROM activity_logs
+           WHERE event_type = 'Interruption' AND DATE(timestamp) = ?""",
+        (today,)
+    ).fetchone()['cnt']
+
+    rows = conn.execute(
+        """SELECT DATE(timestamp) AS day, COUNT(*) AS count
+           FROM activity_logs
+           WHERE DATE(timestamp) >= DATE('now', 'localtime', ?)
+           GROUP BY day""",
+        (f'-{days - 1} days',)
+    ).fetchall()
+    conn.close()
+    counts = {row['day']: row['count'] for row in rows}
+
+    today_date = datetime.now().date()
+    series = []
+    for i in range(days - 1, -1, -1):
+        d = today_date.fromordinal(today_date.toordinal() - i)
+        iso = d.strftime('%Y-%m-%d')
+        series.append({
+            'date':    iso,
+            'count':   counts.get(iso, 0),
+            'is_today': i == 0,
+        })
+
+    return jsonify({
+        'tasks': tasks,
+        'active_count': active_count,
+        'show_warning': active_count >= COGNITIVE_LOAD_THRESHOLD,
+        'threshold': COGNITIVE_LOAD_THRESHOLD,
+        'interrupted_today': interrupted_today,
+        'activity': {'days': days, 'series': series},
+    })
+
+
 # Activity endpoints
 
 @app.route('/api/activity/daily', methods=['GET'])

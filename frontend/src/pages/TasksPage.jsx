@@ -55,20 +55,16 @@ export default function TasksPage({ onToast }) {
   const [sortOpen, setSortOpen] = useState(false)
   const sortRef = useRef(null)
 
-  // Load tasks + today's standup (for the interruption count) + the
-  // per-day activity series the chart renders.
+  // One request feeds every dashboard panel: task list, cognitive-load
+  // flags, the interruption counter, and the chart series.
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      api.getTasks(),
-      api.getStandup().catch(() => null),
-      api.getActivityDaily(7).catch(() => ({ series: [] })),
-    ])
-      .then(([tasks, standup, dailySeries]) => {
+    api.getDashboard(7)
+      .then(payload => {
         if (cancelled) return
-        setData(tasks)
-        setInterruptCount(standup?.interrupted?.length ?? 0)
-        setDaily(dailySeries?.series ?? [])
+        setData(payload)
+        setInterruptCount(payload.interrupted_today ?? 0)
+        setDaily(payload.activity?.series ?? [])
       })
       .catch(e => onToast?.(e.message, 'error'))
       .finally(() => { if (!cancelled) setLoading(false) })

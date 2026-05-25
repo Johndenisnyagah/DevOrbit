@@ -31,6 +31,7 @@ async function req(path, options = {}) {
  */
 export const api = {
   getTasks:       (params = {}) => req(`/tasks?${new URLSearchParams(params)}`),
+  getDashboard:   (days = 7)    => req(`/dashboard?days=${days}`),
   createTask:     (body)        => req('/tasks', { method: 'POST', body: JSON.stringify(body) }),
   getTask:        (id)          => req(`/tasks/${id}`),
   updateStatus:   (id, status)  => req(`/tasks/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
