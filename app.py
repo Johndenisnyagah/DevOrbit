@@ -68,6 +68,14 @@ def row_to_dict(row):
 
 # Task endpoints
 
+def _clamp_int(value, default, lo, hi):
+    """Coerce a query param to an int and clamp it to [lo, hi]."""
+    try:
+        return max(lo, min(int(value), hi))
+    except (TypeError, ValueError):
+        return default
+
+
 @app.route('/api/tasks', methods=['GET'])
 def task_list():
     """List tasks and return dashboard metadata.
@@ -75,16 +83,17 @@ def task_list():
     Query parameters:
         sort: One of updated_at, priority, status, or title.
         status: Optional status filter. Use "all" for no backend filter.
+        limit: Optional page size. Defaults to all matching rows. Capped at 500.
+        offset: Optional offset for paginated callers. Defaults to 0.
     """
     sort_by = request.args.get('sort', 'updated_at')
     filter_stat = request.args.get('status', 'all')
 
     conn = get_db()
-    query = "SELECT * FROM tasks"
+    where_sql = ""
     params = []
-
     if filter_stat != 'all':
-        query += " WHERE status = ?"
+        where_sql = " WHERE status = ?"
         params.append(filter_stat)
 
     order_map = {
@@ -93,18 +102,36 @@ def task_list():
         'updated_at': "updated_at DESC",
         'title': "title ASC"
     }
-    query += f" ORDER BY {order_map.get(sort_by, 'updated_at DESC')}"
+    order_sql = f" ORDER BY {order_map.get(sort_by, 'updated_at DESC')}"
+
+    total = conn.execute(f"SELECT COUNT(*) AS cnt FROM tasks{where_sql}", params).fetchone()['cnt']
+
+    query = f"SELECT * FROM tasks{where_sql}{order_sql}"
+    paged = 'limit' in request.args or 'offset' in request.args
+    if paged:
+        limit = _clamp_int(request.args.get('limit'), 50, 1, 500)
+        offset = _clamp_int(request.args.get('offset'), 0, 0, 1_000_000)
+        query += " LIMIT ? OFFSET ?"
+        params = params + [limit, offset]
+    else:
+        limit = None
+        offset = 0
 
     tasks = [row_to_dict(r) for r in conn.execute(query, params).fetchall()]
     active_count = get_active_count()
     conn.close()
 
-    return jsonify({
+    payload = {
         'tasks': tasks,
+        'total': total,
         'active_count': active_count,
         'show_warning': active_count >= COGNITIVE_LOAD_THRESHOLD,
         'threshold': COGNITIVE_LOAD_THRESHOLD,
-    })
+    }
+    if paged:
+        payload['limit'] = limit
+        payload['offset'] = offset
+    return jsonify(payload)
 
 
 @app.route('/api/tasks', methods=['POST'])
@@ -446,11 +473,13 @@ def activity():
     Powers the Security page audit trail. Each log entry is enriched with
     the task title, priority, and current status so the audit feed can be
     rendered without N+1 calls from the frontend.
+
+    Query parameters:
+        limit: Page size. Defaults to 100. Clamped to [1, 500].
+        offset: Offset into the result set. Defaults to 0.
     """
-    try:
-        limit = max(1, min(int(request.args.get('limit', 100)), 500))
-    except (TypeError, ValueError):
-        limit = 100
+    limit = _clamp_int(request.args.get('limit'), 100, 1, 500)
+    offset = _clamp_int(request.args.get('offset'), 0, 0, 1_000_000)
 
     conn = get_db()
     rows = conn.execute(
@@ -459,8 +488,8 @@ def activity():
            FROM activity_logs al
            JOIN tasks t ON t.id = al.task_id
            ORDER BY al.timestamp DESC, al.id DESC
-           LIMIT ?""",
-        (limit,)
+           LIMIT ? OFFSET ?""",
+        (limit, offset)
     ).fetchall()
     logs = [row_to_dict(r) for r in rows]
 
@@ -476,6 +505,8 @@ def activity():
 
     return jsonify({
         'logs': logs,
+        'limit': limit,
+        'offset': offset,
         'totals': {
             'total':          totals['total']          or 0,
             'status_changes': totals['status_changes'] or 0,
